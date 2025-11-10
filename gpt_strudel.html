@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Arduino Sensor Music</title>
+    <script src="https://cdn.jsdelivr.net/npm/tone@next"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #111;
+            color: #fff;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        button {
+            background: #29b6f6;
+            border: none;
+            border-radius: 8px;
+            color: #111;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        #data {
+            color: #8bc34a;
+            margin-top: 1rem;
+            font-family: monospace;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🎵 Arduino Sensor → Live Music</h1>
+    <p>Click connect, then move the MPU6050.</p>
+    <button id="connect">Connect Arduino</button>
+    <div id="data">Not connected</div>
+
+    <script>
+        const synth = new Tone.MonoSynth().toDestination();
+        let accel = 1.0, gyroZ = 0;
+
+        // --- helper functions ---
+        function map(v, inMin, inMax, outMin, outMax) {
+            v = Math.min(Math.max(v, inMin), inMax);
+            return outMin + ((v - inMin) * (outMax - outMin)) / (inMax - inMin);
+        }
+
+        // --- music loop ---
+        Tone.Transport.scheduleRepeat(time => {
+            const notes = ["C4", "E4", "G4", "B4", "C5"];
+            const i = Math.floor(map(gyroZ, -250, 250, 0, notes.length - 1));
+            const note = notes[i];
+            const dur = map(accel, 0.8, 2.0, 0.05, 0.4);
+            synth.triggerAttackRelease(note, dur, time);
+        }, "8n");
+
+        // --- serial connection ---
+        async function connectSerial() {
+            if (!("serial" in navigator)) {
+                alert("WebSerial not supported. Use Chrome or Edge.");
+                return;
+            }
+
+            try {
+                const port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                const reader = port.readable.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+
+                document.getElementById("data").textContent = "Connected! Waiting for data...";
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value);
+                    let lines = buffer.split("\n");
+                    buffer = lines.pop();
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            accel = data.am;
+                            gyroZ = data.gz;
+                            document.getElementById("data").textContent =
+                                `Accel: ${accel.toFixed(2)} | GyroZ: ${gyroZ.toFixed(2)}`;
+                        } catch (e) { }
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error connecting to Arduino: " + err);
+            }
+        }
+
+        document.getElementById("connect").addEventListener("click", async () => {
+            await Tone.start();       // unlocks audio
+            Tone.Transport.start();   // start the pattern
+            connectSerial();          // then request serial
+        });
+    </script>
+</body>
+
+</html>
