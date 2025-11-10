@@ -18,18 +18,13 @@ let filter;
 let lfo;
 let reverb;
 let audioStarted = false;
+let currentNote = 'C4';
 
 // Initialize Tone.js audio
 async function initAudio() {
-    // Create synth
-    synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'triangle' },
-        envelope: {
-            attack: 0.005,
-            decay: 0.1,
-            sustain: 0.3,
-            release: 0.5,
-        }
+    // Create reverb
+    reverb = new Tone.Reverb({
+        decay: 2.5
     }).toDestination();
 
     // Create filter
@@ -37,16 +32,18 @@ async function initAudio() {
         frequency: 1000,
         type: 'lowpass',
         rolloff: -12
-    });
+    }).connect(reverb);
 
-    // Create reverb
-    reverb = new Tone.Reverb({
-        decay: 2.5
-    }).connect(synth.volume);
-
-    // Connect synth to filter to reverb
-    synth.connect(filter);
-    filter.connect(reverb);
+    // Create synth
+    synth = new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: {
+            attack: 0.005,
+            decay: 0.1,
+            sustain: 0.3,
+            release: 0.5,
+        }
+    }).connect(filter);
 
     // Create LFO for modulation
     lfo = new Tone.LFO({
@@ -60,45 +57,57 @@ async function initAudio() {
     lfo.start();
 
     synth.volume.value = -20;
+    
+    console.log('✅ Audio components initialized');
 }
 
 async function startAudio() {
     if (!audioStarted) {
         try {
+            console.log('Starting audio...');
             await Tone.start();
+            console.log('Tone.js started, initializing audio components...');
             await initAudio();
             audioStarted = true;
-            console.log('🎵 Tone.js audio started');
+            console.log('🎵 Tone.js audio started successfully');
             
             // Start sensor-to-audio mapping
             startSensorMapping();
         } catch (error) {
-            console.error('Audio start error:', error);
+            console.error('❌ Audio start error:', error);
+            alert('Audio error: ' + error.message);
         }
     }
 }
 
 function stopAudio() {
     if (audioStarted) {
-        synth.triggerRelease();
-        audioStarted = false;
-        console.log('⏹️ Tone.js audio stopped');
+        try {
+            synth.triggerRelease();
+            audioStarted = false;
+            console.log('⏹️ Tone.js audio stopped');
+        } catch (error) {
+            console.error('Stop error:', error);
+        }
     }
 }
 
 // Update audio parameters from sensor data
 function startSensorMapping() {
+    // Start with a continuous tone
+    synth.triggerAttack('C4');
+    
     const updateInterval = setInterval(() => {
         if (!audioStarted) {
             clearInterval(updateInterval);
+            synth.triggerRelease();
             return;
         }
 
         // Map accelerometer X to pitch (tilt left/right)
-        const pitchBase = 150;
-        const pitchRange = 200;
-        const pitch = pitchBase + (window.accelX * pitchRange);
-        synth.frequency.value = Math.max(50, Math.min(4000, pitch));
+        const semitones = (window.accelX * 24); // ±24 semitones (2 octaves)
+        const freqVal = Tone.Frequency('C4').transpose(semitones).toFrequency();
+        synth.frequency.value = freqVal;
 
         // Map acceleration magnitude to filter cutoff
         const filterFreq = 500 + (window.accelMag * 1500);
@@ -226,21 +235,29 @@ async function readSerialData() {
 
 // UI control functions
 function updateSynthVolume(value) {
-    synth.volume.value = parseInt(value);
-    document.getElementById('synthVolumeVal').textContent = value + ' dB';
+    if (synth) {
+        synth.volume.value = parseInt(value);
+        document.getElementById('synthVolumeVal').textContent = value + ' dB';
+    }
 }
 
 function updateFilterCutoff(value) {
-    filter.frequency.value = parseInt(value);
-    document.getElementById('filterCutoffVal').textContent = value + ' Hz';
+    if (filter) {
+        filter.frequency.value = parseInt(value);
+        document.getElementById('filterCutoffVal').textContent = value + ' Hz';
+    }
 }
 
 function updateLfoSpeed(value) {
-    lfo.frequency.value = parseFloat(value);
-    document.getElementById('lfoSpeedVal').textContent = value + ' Hz';
+    if (lfo) {
+        lfo.frequency.value = parseFloat(value);
+        document.getElementById('lfoSpeedVal').textContent = value + ' Hz';
+    }
 }
 
 function updateReverbMix(value) {
-    reverb.wet.value = parseFloat(value);
-    document.getElementById('reverbMixVal').textContent = parseFloat(value).toFixed(1);
+    if (reverb) {
+        reverb.wet.value = parseFloat(value);
+        document.getElementById('reverbMixVal').textContent = parseFloat(value).toFixed(1);
+    }
 }
