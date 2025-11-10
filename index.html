@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Arduino Sensor Music 🎵</title>
+<script src="https://cdn.jsdelivr.net/npm/tone@next"></script>
+<style>
+  body { font-family: sans-serif; background: #111; color: #fff; text-align: center; padding: 2rem; }
+  button { padding: 1rem 2rem; font-size: 1.2rem; margin-top: 1rem; border: none; border-radius: 10px; cursor: pointer; background: #29b6f6; color: #111; }
+  .reading { font-family: monospace; color: #8bc34a; margin-top: 1rem; }
+</style>
+</head>
+<body>
+  <h1>🎛️ Arduino Sensor → Live Music</h1>
+  <p>Move your MPU6050 to change tempo and pitch!</p>
+  <button id="connect">Connect Arduino</button>
+  <div class="reading" id="data">Waiting for data...</div>
+
+  <script>
+    const synth = new Tone.MonoSynth({
+      oscillator: { type: "sawtooth" },
+      filter: { type: "lowpass", frequency: 800, rolloff: -24 },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0.4, release: 0.6 }
+    }).toDestination();
+
+    const filter = new Tone.Filter(800, "lowpass").toDestination();
+    synth.connect(filter);
+
+    let accel = 1.0, gyroZ = 0;
+
+    // ---- Connect to Arduino ----
+    async function connectSerial() {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      const reader = port.readable.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value);
+        let lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            accel = data.am;
+            gyroZ = data.gz;
+            document.getElementById("data").textContent =
+              `Accel: ${accel.toFixed(2)} | GyroZ: ${gyroZ.toFixed(2)}`;
+          } catch (e) {}
+        }
+      }
+    }
+
+    document.getElementById("connect").addEventListener("click", async () => {
+      await Tone.start();
+      connectSerial();
+      Tone.Transport.start();
+    });
+
+    // ---- Music loop ----
+    const notes = ["C4", "E4", "G4", "B4", "C5", "D5", "E5"];
+    Tone.Transport.scheduleRepeat((time) => {
+      const pitchIndex = Math.floor(map(gyroZ, -250, 250, 0, notes.length - 1));
+      const note = notes[Math.max(0, Math.min(notes.length - 1, pitchIndex))];
+      const duration = map(accel, 0.8, 2.0, 0.1, 0.5);
+
+      filter.frequency.value = map(accel, 0.8, 2.0, 400, 2000);
+      synth.triggerAttackRelease(note, duration, time);
+    }, "8n");
+
+    function map(v, inMin, inMax, outMin, outMax) {
+      v = Math.min(Math.max(v, inMin), inMax);
+      return outMin + ((v - inMin) * (outMax - outMin)) / (inMax - inMin);
+    }
+  </script>
+</body>
+</html>
