@@ -1,0 +1,38 @@
+<button id="connect">Connect Arduino</button>
+<pre id="output">Waiting...</pre>
+
+<script>
+let accel = 1.0, gyroZ = 0;
+
+async function connectArduino() {
+  if (!("serial" in navigator)) {
+    alert("Your browser doesn't support WebSerial.");
+    return;
+  }
+
+  const port = await navigator.serial.requestPort();
+  await port.open({ baudRate: 115200 });
+  const reader = port.readable.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value);
+    const lines = buffer.split("\n");
+    buffer = lines.pop();
+
+    for (let line of lines) {
+      try {
+        const data = JSON.parse(line);
+        accel = data.am;
+        gyroZ = data.gz;
+        document.getElementById("output").textContent = JSON.stringify(data);
+      } catch(e) {}
+    }
+  }
+}
+
+document.getElementById("connect").addEventListener("click", connectArduino);
+</script>
