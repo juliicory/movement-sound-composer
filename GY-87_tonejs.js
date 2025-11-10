@@ -106,24 +106,36 @@ function startSensorMapping() {
 
         // Map accelerometer X to pitch (tilt left/right)
         const semitones = (window.accelX * 24); // ±24 semitones (2 octaves)
-        const freqVal = Tone.Frequency('C4').transpose(semitones).toFrequency();
-        synth.frequency.value = freqVal;
+        const note = Tone.Frequency('C4').transpose(semitones);
+        
+        // Update synth frequency by setting the oscillator frequency
+        if (synth.oscillator) {
+            synth.oscillator.frequency.value = note;
+        }
 
         // Map acceleration magnitude to filter cutoff
-        const filterFreq = 500 + (window.accelMag * 1500);
-        filter.frequency.value = Math.max(100, Math.min(4000, filterFreq));
+        if (filter && filter.frequency) {
+            const filterFreq = 500 + (window.accelMag * 1500);
+            filter.frequency.value = Math.max(100, Math.min(4000, filterFreq));
+        }
 
         // Map gyro Z (spin) to LFO frequency
-        const lfoFreq = Math.abs(window.gyroZ) * 0.3 + 0.5;
-        lfo.frequency.value = Math.max(0.1, Math.min(10, lfoFreq));
+        if (lfo && lfo.frequency) {
+            const lfoFreq = Math.abs(window.gyroZ) * 0.3 + 0.5;
+            lfo.frequency.value = Math.max(0.1, Math.min(10, lfoFreq));
+        }
 
         // Map accelerometer Y to volume/gain
-        const gainVal = -20 + (window.accelY * 15);
-        synth.volume.value = Math.max(-60, Math.min(0, gainVal));
+        if (synth && synth.volume) {
+            const gainVal = -20 + (window.accelY * 15);
+            synth.volume.value = Math.max(-60, Math.min(0, gainVal));
+        }
 
         // Map gyro magnitude to reverb decay
-        const reverbDecay = 1 + (window.gyroMag * 0.01);
-        reverb.decay = Math.max(0.5, Math.min(5, reverbDecay));
+        if (reverb) {
+            const reverbDecay = 1 + (window.gyroMag * 0.01);
+            reverb.decay = Math.max(0.5, Math.min(5, reverbDecay));
+        }
 
     }, 50); // Update 20 times per second
 }
