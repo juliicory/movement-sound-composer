@@ -1,16 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Strudel + GY-87 IMU</title>
-  <link rel="stylesheet" href="GY-87.css">
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      background: #1a1a1a;
+      color: #00ff00;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      background: #0a0a0a;
+      border: 2px solid #00ff00;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    h1 {
+      color: #00ff00;
+      text-align: center;
+      margin-top: 0;
+    }
+    button {
+      background: #00ff00;
+      border: none;
+      color: #000;
+      padding: 12px 24px;
+      cursor: pointer;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      border-radius: 4px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      display: inline-block;
+      min-width: 200px;
+    }
+    .connected {
+      background: #003300;
+      border: 1px solid #00ff00;
+    }
+    .disconnected {
+      background: #330000;
+      border: 1px solid #ff0000;
+      color: #ff0000;
+    }
+    .data {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .data-item {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .data-label {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    .data-value {
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+    .note {
+      background: #2a2a00;
+      border: 1px solid #ffff00;
+      color: #ffff00;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+    #output {
+      background: #0a0a0a;
+      border: 2px solid #00ff00;
+      padding: 15px;
+      margin: 10px 0;
+      min-height: 100px;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+    .sensor-title {
+      font-size: 14px;
+      opacity: 0.8;
+      margin: 15px 0 10px 0;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+  </style>
 </head>
-
 <body>
   <h1>🎵 Strudel + GY-87 IMU</h1>
-
+  
   <div class="container">
     <h3>Arduino Connection</h3>
     <div class="note">
@@ -24,7 +128,7 @@
 
   <div class="container">
     <h3>Live Sensor Data</h3>
-
+    
     <div class="sensor-title">ACCELEROMETER (g-force)</div>
     <div class="data">
       <div class="data-item">
@@ -71,13 +175,201 @@
     <div class="note">
       Click "Play Sound" to test. Tilt the sensor to hear pitch change!
     </div>
-    <button onclick="playSound()">Play Sound</button>
-    <button onclick="stopSound()">Stop Sound</button>
+    <button id="playBtn">Play Sound</button>
+    <button id="stopBtn">Stop Sound</button>
     <div id="output">Waiting for audio...</div>
   </div>
 
-  <script src="GY-87.js">
+  <script>
+    let port;
+    let reader;
+    let keepReading = false;
+    
+    // Global sensor values
+    window.accelX = 0;
+    window.accelY = 0;
+    window.accelZ = 0;
+    window.accelMag = 0;
+    window.gyroX = 0;
+    window.gyroY = 0;
+    window.gyroZ = 0;
+    window.gyroMag = 0;
+
+    // Audio context
+    let audioCtx;
+    let oscillator;
+    let gainNode;
+    let isPlaying = false;
+
+    // Add event listeners when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('playBtn').addEventListener('click', playSound);
+      document.getElementById('stopBtn').addEventListener('click', stopSound);
+    });
+
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        alert("WebSerial not supported! Use Chrome or Edge.");
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        
+        document.getElementById('status').textContent = 'Connected!';
+        document.getElementById('status').className = 'status connected';
+        document.getElementById('connectBtn').textContent = 'Disconnect';
+        document.getElementById('connectBtn').onclick = disconnectSerial;
+        
+        keepReading = true;
+        readSerialData();
+        
+      } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('status').textContent = 'Failed';
+      }
+    }
+
+    async function disconnectSerial() {
+      keepReading = false;
+      if (reader) await reader.cancel();
+      if (port) await port.close();
+      
+      document.getElementById('status').textContent = 'Disconnected';
+      document.getElementById('status').className = 'status disconnected';
+      document.getElementById('connectBtn').textContent = 'Connect Arduino';
+      document.getElementById('connectBtn').onclick = connectSerial;
+    }
+
+    async function readSerialData() {
+      const textDecoder = new TextDecoderStream();
+      const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+      reader = textDecoder.readable.getReader();
+      
+      let buffer = '';
+      
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          
+          buffer += value;
+          let lines = buffer.split('\n');
+          buffer = lines.pop();
+          
+          for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith('{')) {
+              try {
+                const data = JSON.parse(line);
+                
+                // Update globals
+                window.accelX = data.ax || 0;
+                window.accelY = data.ay || 0;
+                window.accelZ = data.az || 0;
+                window.accelMag = data.am || 0;
+                window.gyroX = data.gx || 0;
+                window.gyroY = data.gy || 0;
+                window.gyroZ = data.gz || 0;
+                window.gyroMag = Math.sqrt(
+                  window.gyroX ** 2 + 
+                  window.gyroY ** 2 + 
+                  window.gyroZ ** 2
+                );
+                
+                // Update display
+                document.getElementById('accelX').textContent = data.ax.toFixed(2);
+                document.getElementById('accelY').textContent = data.ay.toFixed(2);
+                document.getElementById('accelZ').textContent = data.az.toFixed(2);
+                document.getElementById('accelMag').textContent = data.am.toFixed(2);
+                document.getElementById('gyroX').textContent = data.gx.toFixed(1);
+                document.getElementById('gyroY').textContent = data.gy.toFixed(1);
+                document.getElementById('gyroZ').textContent = data.gz.toFixed(1);
+                document.getElementById('gyroMag').textContent = window.gyroMag.toFixed(1);
+                
+                // Update audio if playing
+                if (isPlaying && oscillator) {
+                  updateAudio();
+                }
+                
+              } catch (e) {
+                console.error('Parse error:', e);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Read error:', error);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    function playSound() {
+      if (isPlaying) {
+        document.getElementById('output').textContent = 'Already playing!';
+        return;
+      }
+      
+      try {
+        // Create audio context
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        console.log('Audio context created:', audioCtx.state);
+        
+        // Create oscillator
+        oscillator = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.value = 440;
+        gainNode.gain.value = 0.3;
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.start();
+        isPlaying = true;
+        
+        console.log('Oscillator started');
+        document.getElementById('output').textContent = 
+          'Playing! Tilt sensor to change pitch.\n' +
+          'X axis controls frequency.\n' +
+          'Audio context state: ' + audioCtx.state;
+          
+      } catch (error) {
+        console.error('Audio error:', error);
+        document.getElementById('output').textContent = 
+          'ERROR: ' + error.message + '\nCheck console (F12) for details.';
+      }
+    }
+
+    function stopSound() {
+      if (!isPlaying) return;
+      
+      oscillator.stop();
+      isPlaying = false;
+      
+      document.getElementById('output').textContent = 'Sound stopped.';
+    }
+
+    function updateAudio() {
+      if (!oscillator) return;
+      
+      // Map accelX (-1 to 1) to frequency (200 to 800 Hz)
+      const freq = 440 + (window.accelX * 200);
+      oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+      
+      // Map accelY to volume
+      const vol = Math.abs(window.accelY) * 0.5;
+      gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+      
+      // Show values
+      document.getElementById('output').textContent = 
+        `Frequency: ${freq.toFixed(1)} Hz (X: ${window.accelX.toFixed(2)})\n` +
+        `Volume: ${vol.toFixed(2)} (Y: ${window.accelY.toFixed(2)})\n` +
+        `Gyro Z (spin): ${window.gyroZ.toFixed(1)}°/s`;
+    }
   </script>
 </body>
-
 </html>
