@@ -278,6 +278,19 @@
                   window.gyroZ ** 2
                 );
                 
+                // Share to localStorage for Strudel
+                localStorage.setItem('imu_data', JSON.stringify({
+                  accelX: window.accelX,
+                  accelY: window.accelY,
+                  accelZ: window.accelZ,
+                  accelMag: window.accelMag,
+                  gyroX: window.gyroX,
+                  gyroY: window.gyroY,
+                  gyroZ: window.gyroZ,
+                  gyroMag: window.gyroMag,
+                  timestamp: Date.now()
+                }));
+                
                 // Update display
                 document.getElementById('accelX').textContent = data.ax.toFixed(2);
                 document.getElementById('accelY').textContent = data.ay.toFixed(2);
