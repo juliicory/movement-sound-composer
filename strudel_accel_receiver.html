@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arduino Accelerometer → Strudel</title>
+    <link rel="stylesheet" href="accel_music.css">
+</head>
+<body>
+  <h1>🎵 Arduino Accelerometer → Strudel</h1>
+  
+  <div class="container">
+    <h3>1. Connect to Arduino</h3>
+    <div>
+      <input type="text" id="ipInput" placeholder="192.168.1.100" value="192.168.1.">
+      <button id="connectBtn" onclick="connect()">Connect</button>
+    </div>
+    <div id="status" class="status disconnected">Not connected</div>
+  </div>
+
+  <div class="container">
+    <h3>2. Live Sensor Data</h3>
+    <div class="data">
+      <div class="data-item">
+        <div class="data-label">X Axis</div>
+        <div class="data-value" id="xValue">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Y Axis</div>
+        <div class="data-value" id="yValue">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Z Axis</div>
+        <div class="data-value" id="zValue">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Magnitude</div>
+        <div class="data-value" id="magValue">0.00</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container">
+    <h3>3. Use in Strudel</h3>
+    <div class="instructions">
+      Open <a href="https://strudel.cc" target="_blank" style="color: #00ff00;">strudel.cc</a> and paste this code to use your accelerometer data:
+    </div>
+    <div class="code-box" id="strudelCode">
+// Map X axis to note pitch (0-127)
+note(window.accelX * 20 + 60)
+
+// Map Y axis to filter cutoff
+.lpf(window.accelY * 1000 + 500)
+
+// Map Z axis to volume
+.gain(Math.abs(window.accelZ) * 0.5)
+
+// Trigger on movement (magnitude)
+.s("bd").sometimes(x => x.fast(2))
+  .when(window.accelMag > 1.5, x => x.fast(4))
+    </div>
+  </div>
+
+  <div class="container">
+    <h3>Example Patterns</h3>
+    <div class="code-box">
+// Tilt-controlled synth
+sound("sawtooth")
+  .note(window.accelX * 30 + 60)
+  .lpf(window.accelY * 2000 + 200)
+  .gain(0.5)
+
+// Shake-activated drums  
+s("bd sd").fast(window.accelMag > 2 ? 4 : 1)
+
+// Gesture-based effects
+s("hh*16")
+  .gain(Math.abs(window.accelZ) * 0.3)
+  .pan(window.accelX * 0.5 + 0.5)
+    </div>
+  </div>
+  <script type="module" src="accel_music.js"></script>
+</body>
+</html>
