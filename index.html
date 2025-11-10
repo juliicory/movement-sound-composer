@@ -1,118 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GY-87 IMU → Strudel (USB)</title>
-<link rel="stylesheet" href="GY-87.css">
+  <title>Strudel + GY-87 IMU</title>
+  <link rel="stylesheet" href="GY-87.css">
 </head>
+
 <body>
-  <h1>🎵 GY-87 IMU → Strudel (USB)</h1>
-  
+  <h1>🎵 Strudel + GY-87 IMU</h1>
+
   <div class="container">
-    <h3>1. Connect Arduino via USB</h3>
+    <h3>Arduino Connection</h3>
     <div class="note">
-      ⚠️ <strong>Chrome/Edge only!</strong> WebSerial requires Chrome or Edge browser.<br>
-      Make sure Arduino is plugged in via USB cable.
+      ⚠️ <strong>Chrome/Edge only!</strong> Upload the Arduino code and keep USB connected.
     </div>
-    <button id="connectBtn" onclick="connectSerial()">Connect to Arduino</button>
-    <div id="status" class="status disconnected">Not connected</div>
+    <div class="controls">
+      <button id="connectBtn" onclick="connectSerial()">Connect Arduino</button>
+      <div id="status" class="status disconnected">Not connected</div>
+    </div>
   </div>
 
   <div class="container">
-    <h3>2. Live Sensor Data</h3>
-    
-    <div class="sensor-section">
-      <div class="sensor-title">ACCELEROMETER (g-force)</div>
-      <div class="data">
-        <div class="data-item">
-          <div class="data-label">X Axis</div>
-          <div class="data-value" id="accelX">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Y Axis</div>
-          <div class="data-value" id="accelY">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Z Axis</div>
-          <div class="data-value" id="accelZ">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Magnitude</div>
-          <div class="data-value" id="accelMag">0.00</div>
-        </div>
+    <h3>Live Sensor Data</h3>
+
+    <div class="sensor-title">ACCELEROMETER (g-force)</div>
+    <div class="data">
+      <div class="data-item">
+        <div class="data-label">X</div>
+        <div class="data-value" id="accelX">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Y</div>
+        <div class="data-value" id="accelY">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Z</div>
+        <div class="data-value" id="accelZ">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Mag</div>
+        <div class="data-value" id="accelMag">0.00</div>
       </div>
     </div>
 
-    <div class="sensor-section">
-      <div class="sensor-title">GYROSCOPE (degrees/sec)</div>
-      <div class="data">
-        <div class="data-item">
-          <div class="data-label">X Rotation</div>
-          <div class="data-value" id="gyroX">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Y Rotation</div>
-          <div class="data-value" id="gyroY">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Z Rotation</div>
-          <div class="data-value" id="gyroZ">0.00</div>
-        </div>
-        <div class="data-item">
-          <div class="data-label">Total Spin</div>
-          <div class="data-value" id="gyroMag">0.00</div>
-        </div>
+    <div class="sensor-title">GYROSCOPE (deg/s)</div>
+    <div class="data">
+      <div class="data-item">
+        <div class="data-label">X</div>
+        <div class="data-value" id="gyroX">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Y</div>
+        <div class="data-value" id="gyroY">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Z</div>
+        <div class="data-value" id="gyroZ">0.00</div>
+      </div>
+      <div class="data-item">
+        <div class="data-label">Mag</div>
+        <div class="data-value" id="gyroMag">0.00</div>
       </div>
     </div>
   </div>
 
   <div class="container">
-    <h3>3. Use in Strudel</h3>
-    <div class="instructions">
-      Open <a href="https://strudel.cc" target="_blank" style="color: #00ff00;">strudel.cc</a> in <strong>another tab in the same browser</strong> and use these variables:
+    <h3>Test Pattern</h3>
+    <div class="note">
+      Click "Play Sound" to test. Tilt the sensor to hear pitch change!
     </div>
-    <div class="code-box">
-// ACCELEROMETER (tilt/movement)
-window.accelX    // X-axis tilt
-window.accelY    // Y-axis tilt  
-window.accelZ    // Z-axis
-window.accelMag  // Total acceleration
-
-// GYROSCOPE (rotation)  
-window.gyroX     // Pitch rate
-window.gyroY     // Roll rate
-window.gyroZ     // Yaw (spin)
-window.gyroMag   // Total rotation
-    </div>
-  </div>
-
-  <div class="container">
-    <h3>Example Patterns</h3>
-    
-    <div class="code-box">
-// Tilt-controlled melody
-sound("sine")
-  .note(window.accelX * 30 + 60)
-  .lpf(window.accelY * 2000 + 500)
-  .gain(0.4)
-    </div>
-
-    <div class="code-box">
-// Spin-activated drums
-s("bd sd hh cp")
-  .fast(window.gyroMag > 50 ? 4 : 1)
-  .gain(Math.min(window.gyroMag / 100, 1))
-    </div>
-
-    <div class="code-box">
-// Shake detector
-s("bd*4")
-  .when(window.accelMag > 1.5, x => x.gain(1.2).speed(2))
-    </div>
+    <button onclick="playSound()">Play Sound</button>
+    <button onclick="stopSound()">Stop Sound</button>
+    <div id="output">Waiting for audio...</div>
   </div>
 
   <script src="GY-87.js">
   </script>
 </body>
+
 </html>
